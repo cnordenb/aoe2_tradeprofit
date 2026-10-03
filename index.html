@@ -94,6 +94,17 @@
     display: block;
     visibility: hidden;
   }
+  .result-row {
+    display: flex;
+    gap: 24px;
+    white-space: nowrap;
+  }
+  /* No margin to spill into on narrow screens, so let the pair wrap. */
+  @media (max-width: 720px) {
+    .result-row {
+      flex-wrap: wrap;
+    }
+  }
   .value {
     font-size: 2rem;
   }
@@ -167,7 +178,10 @@
   <input id="slider" type="range" min="0" max="169" step="1" value="40" aria-label="Distance in tiles">
   <div id="error"></div>
   <div id="result" hidden>
-    <div><span id="perTrip" class="value"></span> <span class="unit">gold per trip</span></div>
+    <div class="result-row">
+      <div><span id="perTrip" class="value"></span> <span class="unit">gold per trip</span></div>
+      <div><span id="tripTime" class="value"></span> <span class="unit">time per round-trip</span></div>
+    </div>
     <div><span id="perMinute" class="value"></span> <span class="unit">gold per minute</span></div>
     <div><span id="breakEven" class="value"></span> <span class="unit">break-even time</span></div>
   </div>
@@ -186,6 +200,7 @@
   const bumpValue = document.getElementById("bumpValue");
   const result = document.getElementById("result");
   const perTrip = document.getElementById("perTrip");
+  const tripTime = document.getElementById("tripTime");
   const perMinute = document.getElementById("perMinute");
   const breakEven = document.getElementById("breakEven");
   const error = document.getElementById("error");
@@ -222,6 +237,10 @@
     // Bump factor b reduces gold per minute by b percent (0 - 25).
     const b = Number(bump.value);
 
+    // Time per trip: there and back (2x tiles) at speed s / 100, stretched
+    // by the bump factor the same way gold per minute is reduced.
+    const tripSeconds = Math.round((2 * x * 10000) / (s * (100 - b)));
+
     // A trip is there and back (2x tiles), so it takes 2x / speed seconds
     // and gold per minute = trip * 60 * speed / (2x). Using the unrounded
     // trip value the x cancels out, leaving 69 * (10x + 3d) * speed / (50d),
@@ -240,13 +259,19 @@
       const trips = Math.ceil((100000 * d) / (23 * x * (10 * x + 3 * d) * q));
       const tiles = trips * 2 * x - (halfTrip.checked ? x : 0);
       const seconds = Math.round((tiles * 10000) / (s * (100 - b)));
-      breakEvenText = Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
+      breakEvenText = formatTime(seconds);
     }
 
     perTrip.textContent = trip.toFixed(1);
+    tripTime.textContent = formatTime(tripSeconds);
     perMinute.textContent = minute.toFixed(1);
     breakEven.textContent = breakEvenText;
     result.hidden = false;
+  }
+
+  // Whole seconds as m:ss.
+  function formatTime(seconds) {
+    return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
   }
 
   // Trade unit speed in hundredths of a tile per second; Caravan makes it faster.
@@ -256,7 +281,7 @@
     return caravan.checked ? 150 : 125;
   }
 
-  // Side to side and corner to corner subtract 8 for a cart, 10 for a cog.
+  // Side to side and corner to corner subtract 8 for a cart, 6 for a cog.
   function edgeOffset() {
     return cog.checked ? 6 : 8;
   }
