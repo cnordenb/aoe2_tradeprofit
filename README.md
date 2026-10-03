@@ -1,2 +1,4 @@
-# aoe2calc_simple
-various aoe2 calculations
+# aoe2_tradeprofit
+
+
+Findout exact (about 100% - 98% accurate) trade gold income at any distance.
