@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calculator</title>
+<style>
+  :root {
+    color-scheme: dark;
+  }
+  body {
+    font-family: system-ui, sans-serif;
+    max-width: 360px;
+    margin: 0 auto;
+    padding: 0 16px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: #121212;
+    color: #e0e0e0;
+  }
+  input, select, button {
+    font-size: 1.2rem;
+    padding: 8px;
+    box-sizing: border-box;
+    background: #1e1e1e;
+    color: #e0e0e0;
+    border: 1px solid #444;
+    border-radius: 4px;
+  }
+  input, select {
+    width: 100%;
+  }
+  select {
+    margin-bottom: 16px;
+  }
+  /* Hide the number input's increment/decrement arrows. */
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .row {
+    position: relative;
+  }
+  /* Buttons sit outside the content column, out in the right margin. */
+  .buttons {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  /* On narrow screens there's no margin to use, so put them beside the input. */
+  @media (max-width: 720px) {
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .row > input {
+      flex: 1;
+      min-width: 0;
+    }
+    .buttons {
+      position: static;
+      transform: none;
+      margin-left: 0;
+    }
+  }
+  button {
+    font-size: 0.9rem;
+    padding: 4px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover {
+    background: #2a2a2a;
+  }
+  #result {
+    margin-top: 20px;
+  }
+  /* Keep the result's space reserved while hidden so the centred
+     content doesn't jump when it appears. */
+  #result[hidden] {
+    display: block;
+    visibility: hidden;
+  }
+  .value {
+    font-size: 2rem;
+  }
+  .unit {
+    font-size: 1rem;
+    color: #999;
+  }
+  .radios {
+    display: flex;
+    gap: 12px;
+  }
+  .option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  input[type="checkbox"], input[type="radio"] {
+    width: auto;
+    margin: 0;
+    cursor: pointer;
+  }
+  input[type="range"] {
+    margin-top: 12px;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+  .bump-label {
+    margin-top: 16px;
+  }
+  #bump {
+    margin-top: 4px;
+    accent-color: #e53935;
+  }
+  #error {
+    color: #ff6b6b;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+  <label for="size">Map size:</label>
+  <select id="size">
+    <option value="120" selected>Tiny (2 player) [120]</option>
+    <option value="144">Small (3 player) [144]</option>
+    <option value="168">Medium (4 player) [168]</option>
+    <option value="200">Normal (6 player) [200]</option>
+    <option value="220">Large (8 player) [220]</option>
+    <option value="240">Huge [240]</option>
+    <option value="480">Ludicrous [480]</option>
+  </select>
+
+  <label for="num">Distance in tiles:</label>
+  <div class="row">
+    <input id="num" type="number" min="0" step="1" value="40" autofocus>
+    <div class="buttons">
+      <div class="radios" role="radiogroup" aria-label="Trade unit">
+        <label class="option"><input type="radio" name="unit" value="cart" checked> Cart</label>
+        <label class="option"><input id="cog" type="radio" name="unit" value="cog"> Cog</label>
+      </div>
+      <button type="button" id="sideToSide">Side to side</button>
+      <button type="button" id="cornerToCorner">Corner to corner</button>
+      <label class="option"><input id="caravan" type="checkbox"> Caravan</label>
+      <label class="option"><input id="halfTrip" type="checkbox"> Half-trip start</label>
+      <label class="option"><input id="spanish" type="checkbox"> Spanish team bonus</label>
+    </div>
+  </div>
+  <input id="slider" type="range" min="0" max="169" step="1" value="40" aria-label="Distance in tiles">
+  <div id="error"></div>
+  <div id="result" hidden>
+    <div><span id="perTrip" class="value"></span> <span class="unit">gold per trip</span></div>
+    <div><span id="perMinute" class="value"></span> <span class="unit">gold per minute</span></div>
+    <div><span id="breakEven" class="value"></span> <span class="unit">break-even time</span></div>
+  </div>
+  <label for="bump" class="bump-label">Bump factor: <span id="bumpValue">0</span>%</label>
+  <input id="bump" type="range" min="0" max="25" step="1" value="0">
+
+<script>
+  const input = document.getElementById("num");
+  const slider = document.getElementById("slider");
+  const size = document.getElementById("size");
+  const caravan = document.getElementById("caravan");
+  const halfTrip = document.getElementById("halfTrip");
+  const spanish = document.getElementById("spanish");
+  const cog = document.getElementById("cog");
+  const bump =document.getElementById("bump");
+  const bumpValue = document.getElementById("bumpValue");
+  const result = document.getElementById("result");
+  const perTrip = document.getElementById("perTrip");
+  const perMinute = document.getElementById("perMinute");
+  const breakEven = document.getElementById("breakEven");
+  const error = document.getElementById("error");
+
+  function calculate() {
+    const text = input.value.trim();
+    result.hidden = true;
+    error.textContent = "";
+
+    if (text === "") return;
+
+    const x = Number(text);
+    if (!Number.isInteger(x)) {
+      error.textContent = "Please enter a whole number.";
+      return;
+    }
+
+    const d = Number(size.value);
+
+    // Spanish team bonus multiplies gold per trip by 1.25, kept whole as
+    // q / 4 quarters (q = 5 with the bonus, 4 without).
+    const q = spanish.checked ? 5 : 4;
+
+    // 0.46 * x * (x / d + 0.3) is exactly 23 * x * (10x + 3d) / (500d),
+    // times q / 4 for the bonus. Rounded to one decimal, done as
+    // 23 * x * (10x + 3d) * q / (200d) so whole-number math avoids
+    // floating-point rounding errors. Negative results are clamped to 0.
+    const trip = Math.max(0, Math.round((23 * x * (10 * x + 3 * d) * q) / (200 * d)) / 10);
+
+    // Speed in hundredths of a tile per second, kept whole so speeds like
+    // 1.65 don't bring in floating-point rounding errors.
+    const s = speedHundredths();
+
+    // Bump factor b reduces gold per minute by b percent (0 - 25).
+    const b = Number(bump.value);
+
+    // A trip is there and back (2x tiles), so it takes 2x / speed seconds
+    // and gold per minute = trip * 60 * speed / (2x). Using the unrounded
+    // trip value the x cancels out, leaving 69 * (10x + 3d) * speed / (50d),
+    // then the bump factor scales it by (100 - b) / 100 and the Spanish
+    // bonus by q / 4. Rounded to one decimal with speed = s / 100, done as
+    // 69 * (10x + 3d) * s * (100 - b) * q / (200000d).
+    const minute = x === 0 ? 0 : Math.round((69 * (10 * x + 3 * d) * s * (100 - b) * q) / (200000 * d)) / 10;
+
+    // Break-even: full trips needed to earn 50 gold, using the unrounded
+    // trip value, so ceil(50 / trip) = ceil(100000d / (23x(10x + 3d) * q)).
+    // Each trip covers 2x tiles, except a half-trip start where the first
+    // trip covers only x. Time is tiles / speed, stretched by the bump
+    // factor the same way gold per minute is reduced. Shown as m:ss.
+    let breakEvenText = "never";
+    if (x > 0) {
+      const trips = Math.ceil((100000 * d) / (23 * x * (10 * x + 3 * d) * q));
+      const tiles = trips * 2 * x - (halfTrip.checked ? x : 0);
+      const seconds = Math.round((tiles * 10000) / (s * (100 - b)));
+      breakEvenText = Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
+    }
+
+    perTrip.textContent = trip.toFixed(1);
+    perMinute.textContent = minute.toFixed(1);
+    breakEven.textContent = breakEvenText;
+    result.hidden = false;
+  }
+
+  // Trade unit speed in hundredths of a tile per second; Caravan makes it faster.
+  // Cart: 1.25 (1.5 with Caravan). Cog: 1.65 (2.4 with Caravan).
+  function speedHundredths() {
+    if (cog.checked) return caravan.checked ? 240 : 165;
+    return caravan.checked ? 150 : 125;
+  }
+
+  // Side to side and corner to corner subtract 8 for a cart, 10 for a cog.
+  function edgeOffset() {
+    return cog.checked ? 6 : 8;
+  }
+
+  // Maximum value is size * 1.41, done as * 141 / 100 and rounded.
+  function maxDistance() {
+    return Math.round((Number(size.value) * 141) / 100);
+  }
+
+  function updateMax() {
+    slider.max = maxDistance();
+    input.max = maxDistance();
+  }
+
+  // Values typed outside 0 - maximum are replaced with the nearest limit.
+  function clampInput() {
+    if (input.value === "") return;
+    if (Number(input.value) > maxDistance()) input.value = maxDistance();
+    else if (Number(input.value) < 0) input.value = 0;
+  }
+
+  // Move the slider to match the text field.
+  function syncSlider() {
+    if (input.value !== "") slider.value = input.value;
+  }
+
+  function setDistance(value) {
+    input.value = value;
+    syncSlider();
+    calculate();
+  }
+
+  document.getElementById("sideToSide").addEventListener("click", () => {
+    setDistance(Number(size.value) - edgeOffset());
+  });
+
+  // (size - offset) * 1.41, done as * 141 / 100 and rounded to a whole number
+  // since the calculation only accepts integers.
+  document.getElementById("cornerToCorner").addEventListener("click", () => {
+    setDistance(Math.round(((Number(size.value) - edgeOffset()) * 141) / 100));
+  });
+
+  slider.addEventListener("input", () => {
+    input.value = slider.value;
+    calculate();
+  });
+
+  input.addEventListener("input", () => {
+    clampInput();
+    syncSlider();
+    calculate();
+  });
+
+  size.addEventListener("change", () => {
+    updateMax();
+    clampInput();
+    syncSlider();
+    calculate();
+  });
+
+  caravan.addEventListener("change", calculate);
+  halfTrip.addEventListener("change", calculate);
+  spanish.addEventListener("change", calculate);
+
+  document.querySelectorAll('input[name="unit"]').forEach((radio) => {
+    radio.addEventListener("change", calculate);
+  });
+
+  bump.addEventListener("input", () => {
+    bumpValue.textContent = bump.value;
+    calculate();
+  });
+
+  updateMax();
+  // Browsers can restore the slider position on reload, so show its real value.
+  bumpValue.textContent = bump.value;
+  // Always start at a distance of 40 so the results are shown on load.
+  setDistance(40);
+</script>
+</body>
+</html>
