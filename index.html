@@ -55,12 +55,14 @@
     top: 50%;
     transform: translateY(-50%);
     margin-left: 24px;
+    width: max-content;
+    max-width: 240px;
     display: flex;
     flex-direction: column;
     gap: 4px;
   }
   /* On narrow screens there's no margin to use, so put them beside the input. */
-  @media (max-width: 720px) {
+  @media (max-width: 960px) {
     .row {
       display: flex;
       gap: 8px;
@@ -74,6 +76,7 @@
       position: static;
       transform: none;
       margin-left: 0;
+      max-width: 50%;
     }
   }
   button {
@@ -121,8 +124,11 @@
     align-items: center;
     gap: 8px;
     font-size: 0.9rem;
-    white-space: nowrap;
     cursor: pointer;
+  }
+  /* Extra space to separate a new group of options. */
+  .group-start {
+    margin-top: 12px;
   }
   input[type="checkbox"], input[type="radio"] {
     width: auto;
@@ -172,7 +178,9 @@
       <button type="button" id="cornerToCorner">Corner to corner</button>
       <label class="option"><input id="caravan" type="checkbox"> Caravan</label>
       <label class="option"><input id="halfTrip" type="checkbox"> Half-trip start</label>
-      <label class="option"><input id="spanish" type="checkbox"> Spanish team bonus</label>
+      <label class="option group-start"><input id="spanish" type="checkbox"> Spanish team bonus</label>
+      <label class="option"><input id="silkRoad" type="checkbox"> Silk Road (Italian UT: trade units cost -50%)</label>
+      <label class="option"><input id="varangian" type="checkbox"> Varangian civ bonus (+50% stronger Caravan)</label>
     </div>
   </div>
   <input id="slider" type="range" min="0" max="169" step="1" value="40" aria-label="Distance in tiles">
@@ -195,6 +203,8 @@
   const caravan = document.getElementById("caravan");
   const halfTrip = document.getElementById("halfTrip");
   const spanish = document.getElementById("spanish");
+  const varangian = document.getElementById("varangian");
+  const silkRoad = document.getElementById("silkRoad");
   const cog = document.getElementById("cog");
   const bump =document.getElementById("bump");
   const bumpValue = document.getElementById("bumpValue");
@@ -230,35 +240,39 @@
     // floating-point rounding errors. Negative results are clamped to 0.
     const trip = Math.max(0, Math.round((23 * x * (10 * x + 3 * d) * q) / (200 * d)) / 10);
 
-    // Speed in hundredths of a tile per second, kept whole so speeds like
+    // Speed in thousandths of a tile per second, kept whole so speeds like
     // 1.65 don't bring in floating-point rounding errors.
-    const s = speedHundredths();
+    const s = speedThousandths();
 
     // Bump factor b reduces gold per minute by b percent (0 - 25).
     const b = Number(bump.value);
 
-    // Time per trip: there and back (2x tiles) at speed s / 100, stretched
+    // Time per trip: there and back (2x tiles) at speed s / 1000, stretched
     // by the bump factor the same way gold per minute is reduced.
-    const tripSeconds = Math.round((2 * x * 10000) / (s * (100 - b)));
+    const tripSeconds = Math.round((2 * x * 100000) / (s * (100 - b)));
 
     // A trip is there and back (2x tiles), so it takes 2x / speed seconds
     // and gold per minute = trip * 60 * speed / (2x). Using the unrounded
     // trip value the x cancels out, leaving 69 * (10x + 3d) * speed / (50d),
     // then the bump factor scales it by (100 - b) / 100 and the Spanish
-    // bonus by q / 4. Rounded to one decimal with speed = s / 100, done as
-    // 69 * (10x + 3d) * s * (100 - b) * q / (200000d).
-    const minute = x === 0 ? 0 : Math.round((69 * (10 * x + 3 * d) * s * (100 - b) * q) / (200000 * d)) / 10;
+    // bonus by q / 4. Rounded to one decimal with speed = s / 1000, done as
+    // 69 * (10x + 3d) * s * (100 - b) * q / (2000000d).
+    const minute = x === 0 ? 0 : Math.round((69 * (10 * x + 3 * d) * s * (100 - b) * q) / (2000000 * d)) / 10;
 
-    // Break-even: full trips needed to earn 50 gold, using the unrounded
-    // trip value, so ceil(50 / trip) = ceil(100000d / (23x(10x + 3d) * q)).
+    // Trade unit gold cost: 50, halved to 25 by Silk Road.
+    const cost = silkRoad.checked ? 25 : 50;
+
+    // Break-even: full trips needed to earn the gold cost, using the
+    // unrounded trip value, so ceil(cost / trip)
+    // = ceil(cost * 2000d / (23x(10x + 3d) * q)).
     // Each trip covers 2x tiles, except a half-trip start where the first
     // trip covers only x. Time is tiles / speed, stretched by the bump
     // factor the same way gold per minute is reduced. Shown as m:ss.
     let breakEvenText = "never";
     if (x > 0) {
-      const trips = Math.ceil((100000 * d) / (23 * x * (10 * x + 3 * d) * q));
+      const trips = Math.ceil((cost * 2000 * d) / (23 * x * (10 * x + 3 * d) * q));
       const tiles = trips * 2 * x - (halfTrip.checked ? x : 0);
-      const seconds = Math.round((tiles * 10000) / (s * (100 - b)));
+      const seconds = Math.round((tiles * 100000) / (s * (100 - b)));
       breakEvenText = formatTime(seconds);
     }
 
@@ -274,11 +288,15 @@
     return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
   }
 
-  // Trade unit speed in hundredths of a tile per second; Caravan makes it faster.
+  // Trade unit speed in thousandths of a tile per second; Caravan makes it faster.
   // Cart: 1.25 (1.5 with Caravan). Cog: 1.65 (2.4 with Caravan).
-  function speedHundredths() {
-    if (cog.checked) return caravan.checked ? 240 : 165;
-    return caravan.checked ? 150 : 125;
+  // The Varangian bonus makes Caravan's speed boost 50% bigger, so the
+  // cart's +20% becomes +30% (1.625) and the cog's +0.75 becomes +1.125 (2.775).
+  function speedThousandths() {
+    const base = cog.checked ? 1650 : 1250;
+    if (!caravan.checked) return base;
+    const boost = cog.checked ? 750 : 250;
+    return base + (varangian.checked ? (boost * 3) / 2 : boost);
   }
 
   // Side to side and corner to corner subtract 8 for a cart, 6 for a cog.
@@ -345,6 +363,8 @@
   caravan.addEventListener("change", calculate);
   halfTrip.addEventListener("change", calculate);
   spanish.addEventListener("change", calculate);
+  varangian.addEventListener("change", calculate);
+  silkRoad.addEventListener("change", calculate);
 
   document.querySelectorAll('input[name="unit"]').forEach((radio) => {
     radio.addEventListener("change", calculate);
