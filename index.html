@@ -180,6 +180,7 @@
       <label class="option"><input id="halfTrip" type="checkbox"> Half-trip start</label>
       <label class="option group-start"><input id="spanish" type="checkbox"> Spanish team bonus</label>
       <label class="option"><input id="silkRoad" type="checkbox"> Silk Road (Italian UT: trade units cost -50%)</label>
+      <label class="option"><input id="grandTrunk" type="checkbox"> Grand Trunk Road (Hindustani UT: 10% more gold per trip)</label>
       <label class="option"><input id="varangian" type="checkbox"> Varangian civ bonus (+50% stronger Caravan)</label>
     </div>
   </div>
@@ -205,6 +206,7 @@
   const spanish = document.getElementById("spanish");
   const varangian = document.getElementById("varangian");
   const silkRoad = document.getElementById("silkRoad");
+  const grandTrunk = document.getElementById("grandTrunk");
   const cog = document.getElementById("cog");
   const bump =document.getElementById("bump");
   const bumpValue = document.getElementById("bumpValue");
@@ -234,11 +236,15 @@
     // q / 4 quarters (q = 5 with the bonus, 4 without).
     const q = spanish.checked ? 5 : 4;
 
+    // Grand Trunk Road multiplies gold per trip by 1.1, kept whole as
+    // g / 10 tenths (g = 11 with the tech, 10 without).
+    const g = grandTrunk.checked ? 11 : 10;
+
     // 0.46 * x * (x / d + 0.3) is exactly 23 * x * (10x + 3d) / (500d),
-    // times q / 4 for the bonus. Rounded to one decimal, done as
-    // 23 * x * (10x + 3d) * q / (200d) so whole-number math avoids
+    // times q / 4 and g / 10 for the bonuses. Rounded to one decimal, done as
+    // 23 * x * (10x + 3d) * q * g / (2000d) so whole-number math avoids
     // floating-point rounding errors. Negative results are clamped to 0.
-    const trip = Math.max(0, Math.round((23 * x * (10 * x + 3 * d) * q) / (200 * d)) / 10);
+    const trip = Math.max(0, Math.round((23 * x * (10 * x + 3 * d) * q * g) / (2000 * d)) / 10);
 
     // Speed in thousandths of a tile per second, kept whole so speeds like
     // 1.65 don't bring in floating-point rounding errors.
@@ -254,23 +260,24 @@
     // A trip is there and back (2x tiles), so it takes 2x / speed seconds
     // and gold per minute = trip * 60 * speed / (2x). Using the unrounded
     // trip value the x cancels out, leaving 69 * (10x + 3d) * speed / (50d),
-    // then the bump factor scales it by (100 - b) / 100 and the Spanish
-    // bonus by q / 4. Rounded to one decimal with speed = s / 1000, done as
-    // 69 * (10x + 3d) * s * (100 - b) * q / (2000000d).
-    const minute = x === 0 ? 0 : Math.round((69 * (10 * x + 3 * d) * s * (100 - b) * q) / (2000000 * d)) / 10;
+    // then the bump factor scales it by (100 - b) / 100, the Spanish
+    // bonus by q / 4 and Grand Trunk Road by g / 10. Rounded to one decimal
+    // with speed = s / 1000, done as
+    // 69 * (10x + 3d) * s * (100 - b) * q * g / (20000000d).
+    const minute = x === 0 ? 0 : Math.round((69 * (10 * x + 3 * d) * s * (100 - b) * q * g) / (20000000 * d)) / 10;
 
     // Trade unit gold cost: 50, halved to 25 by Silk Road.
     const cost = silkRoad.checked ? 25 : 50;
 
     // Break-even: full trips needed to earn the gold cost, using the
     // unrounded trip value, so ceil(cost / trip)
-    // = ceil(cost * 2000d / (23x(10x + 3d) * q)).
+    // = ceil(cost * 20000d / (23x(10x + 3d) * q * g)).
     // Each trip covers 2x tiles, except a half-trip start where the first
     // trip covers only x. Time is tiles / speed, stretched by the bump
     // factor the same way gold per minute is reduced. Shown as m:ss.
     let breakEvenText = "never";
     if (x > 0) {
-      const trips = Math.ceil((cost * 2000 * d) / (23 * x * (10 * x + 3 * d) * q));
+      const trips = Math.ceil((cost * 20000 * d) / (23 * x * (10 * x + 3 * d) * q * g));
       const tiles = trips * 2 * x - (halfTrip.checked ? x : 0);
       const seconds = Math.round((tiles * 100000) / (s * (100 - b)));
       breakEvenText = formatTime(seconds);
@@ -365,6 +372,7 @@
   spanish.addEventListener("change", calculate);
   varangian.addEventListener("change", calculate);
   silkRoad.addEventListener("change", calculate);
+  grandTrunk.addEventListener("change", calculate);
 
   document.querySelectorAll('input[name="unit"]').forEach((radio) => {
     radio.addEventListener("change", calculate);
