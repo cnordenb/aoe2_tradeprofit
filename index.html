@@ -126,6 +126,12 @@
     font-size: 0.9rem;
     cursor: pointer;
   }
+  /* .option sets its own display, which overrides the browser's
+     display: none for [hidden], so a hidden Cog-only option keeps its space
+     reserved and the other options don't move when it disappears. */
+  .cog-only[hidden] {
+    visibility: hidden;
+  }
   /* Extra space to separate a new group of options. */
   .group-start {
     margin-top: 12px;
@@ -177,6 +183,8 @@
       <button type="button" id="sideToSide">Side to side</button>
       <button type="button" id="cornerToCorner">Corner to corner</button>
       <label class="option"><input id="caravan" type="checkbox"> Caravan</label>
+      <label class="option cog-only"><input id="clinker" type="checkbox"> Clinker Construction</label>
+      <label class="option cog-only"><input id="carvel" type="checkbox"> Carvel Hull</label>
       <label class="option"><input id="halfTrip" type="checkbox"> Half-trip start</label>
       <label class="option group-start"><input id="spanish" type="checkbox"> Spanish team bonus</label>
       <label class="option"><input id="silkRoad" type="checkbox"> Silk Road (Italian UT: trade units cost -50%)</label>
@@ -202,6 +210,8 @@
   const slider = document.getElementById("slider");
   const size = document.getElementById("size");
   const caravan = document.getElementById("caravan");
+  const clinker = document.getElementById("clinker");
+  const carvel = document.getElementById("carvel");
   const halfTrip = document.getElementById("halfTrip");
   const spanish = document.getElementById("spanish");
   const varangian = document.getElementById("varangian");
@@ -295,15 +305,29 @@
     return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
   }
 
-  // Trade unit speed in thousandths of a tile per second; Caravan makes it faster.
-  // Cart: 1.25 (1.5 with Caravan). Cog: 1.65 (2.4 with Caravan).
-  // The Varangian bonus makes Caravan's speed boost 50% bigger, so the
-  // cart's +20% becomes +30% (1.625) and the cog's +0.75 becomes +1.125 (2.775).
+  // Trade unit speed in thousandths of a tile per second. Base speed is
+  // Cart 1.25, Cog 1.65. Caravan adds 20%, or 30% with the Varangian bonus
+  // making its boost 50% bigger (kept whole as tenths: 10, 12 or 13).
+  // Clinker Construction and Carvel Hull each make a Cog 10% faster (kept
+  // whole as hundredths: 100, 110 or 121), and the Cog's speed is rounded up
+  // to two decimals, e.g. 1.65 * 1.2 * 1.1 * 1.1 = 2.3958 becomes 2.40.
   function speedThousandths() {
-    const base = cog.checked ? 1650 : 1250;
-    if (!caravan.checked) return base;
-    const boost = cog.checked ? 750 : 250;
-    return base + (varangian.checked ? (boost * 3) / 2 : boost);
+    let caravanBoost = 10;
+    if (caravan.checked) caravanBoost = varangian.checked ? 13 : 12;
+    if (!cog.checked) return (1250 * caravanBoost) / 10;
+    let hull = 100;
+    if (clinker.checked) hull = (hull * 11) / 10;
+    if (carvel.checked) hull = (hull * 11) / 10;
+    // 165 * caravanBoost * hull is in hundred-thousandths; / 1000 and
+    // rounded up gives hundredths, * 10 gives thousandths.
+    return Math.ceil((165 * caravanBoost * hull) / 1000) * 10;
+  }
+
+  // Clinker Construction and Carvel Hull only apply to a Cog.
+  function updateCogOptions() {
+    document.querySelectorAll(".cog-only").forEach((option) => {
+      option.hidden = !cog.checked;
+    });
   }
 
   // Side to side and corner to corner subtract 8 for a cart, 6 for a cog.
@@ -374,8 +398,23 @@
   silkRoad.addEventListener("change", calculate);
   grandTrunk.addEventListener("change", calculate);
 
+  // Clinker Construction is a prerequisite of Carvel Hull: ticking Carvel Hull
+  // ticks Clinker Construction, and unticking Clinker Construction unticks
+  // Carvel Hull.
+  clinker.addEventListener("change", () => {
+    if (!clinker.checked) carvel.checked = false;
+    calculate();
+  });
+  carvel.addEventListener("change", () => {
+    if (carvel.checked) clinker.checked = true;
+    calculate();
+  });
+
   document.querySelectorAll('input[name="unit"]').forEach((radio) => {
-    radio.addEventListener("change", calculate);
+    radio.addEventListener("change", () => {
+      updateCogOptions();
+      calculate();
+    });
   });
 
   bump.addEventListener("input", () => {
@@ -384,6 +423,8 @@
   });
 
   updateMax();
+  // Browsers can restore the unit choice on reload, so match the Cog options to it.
+  updateCogOptions();
   // Browsers can restore the slider position on reload, so show its real value.
   bumpValue.textContent = bump.value;
   // Always start at a distance of 40 so the results are shown on load.
