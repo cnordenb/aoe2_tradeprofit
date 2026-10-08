@@ -16,9 +16,24 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     background: #121212;
     color: #e0e0e0;
+  }
+  /* The calculator choice stays at the top, so it doesn't move when the
+     calculator changes. */
+  .mode-label {
+    margin-top: 16px;
+  }
+  /* The chosen calculator is centred in the space below the choice. */
+  .panel {
+    display: flex;
+    flex-direction: column;
+    margin: auto 0;
+  }
+  /* .panel sets its own display, which overrides the browser's
+     display: none for [hidden]. */
+  .panel[hidden] {
+    display: none;
   }
   input, select, button {
     font-size: 1.2rem;
@@ -88,12 +103,12 @@
   button:hover {
     background: #2a2a2a;
   }
-  #result {
+  .result {
     margin-top: 20px;
   }
   /* Keep the result's space reserved while hidden so the centred
      content doesn't jump when it appears. */
-  #result[hidden] {
+  .result[hidden] {
     display: block;
     visibility: hidden;
   }
@@ -154,13 +169,90 @@
     margin-top: 4px;
     accent-color: #e53935;
   }
-  #error {
+  .error {
     color: #ff6b6b;
     margin-top: 8px;
+  }
+  /* Gurjara Mill */
+  .reverse {
+    margin-top: 48px;
+  }
+  .calc {
+    position: relative;
+  }
+  /* Formulas sit outside the content column, out in the right margin. */
+  .formulas {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 24px;
+    width: max-content;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  /* On narrow screens there's no margin to use, so put them below. */
+  @media (max-width: 960px) {
+    .formulas {
+      position: static;
+      transform: none;
+      margin: 48px 0 0;
+    }
+  }
+  .formula {
+    font-size: 1.1rem;
+  }
+  /* Stop the exponent from pushing the lines apart. */
+  .formula sup {
+    font-size: 0.7em;
+    line-height: 0;
+  }
+  .legend {
+    margin-top: 8px;
+    font-size: 0.9rem;
+    color: #999;
+  }
+  /* Walking distance */
+  .distance-label {
+    margin-top: 16px;
+  }
+  /* The gatherers' techs share one spot, sized for the largest group, so
+     nothing moves when the gatherer changes. */
+  .techs {
+    display: grid;
+  }
+  .tech-group {
+    grid-area: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+  }
+  /* .tech-group sets its own display, which overrides the browser's
+     display: none for [hidden], so a hidden group keeps its space. */
+  .tech-group[hidden] {
+    visibility: hidden;
+  }
+  /* On narrow screens the checkboxes sit beside the inputs, so give both
+     columns the same width to line the inputs up. */
+  @media (max-width: 960px) {
+    #walk .buttons {
+      width: 10em;
+    }
   }
 </style>
 </head>
 <body>
+  <label for="mode" class="mode-label">Calculator:</label>
+  <select id="mode">
+    <option value="trade" selected>Trade</option>
+    <option value="mill">Gurjara Mill</option>
+    <option value="walk">Walking distance</option>
+  </select>
+
+<div id="trade" class="panel">
   <label for="size">Map size:</label>
   <select id="size">
     <option value="120" selected>Tiny (2 player) [120]</option>
@@ -193,8 +285,8 @@
     </div>
   </div>
   <input id="slider" type="range" min="0" max="169" step="1" value="40" aria-label="Distance in tiles">
-  <div id="error"></div>
-  <div id="result" hidden>
+  <div id="error" class="error"></div>
+  <div id="result" class="result" hidden>
     <div class="result-row">
       <div><span id="perTrip" class="value"></span> <span class="unit">gold per trip</span></div>
       <div><span id="tripTime" class="value"></span> <span class="unit">time per round-trip</span></div>
@@ -204,8 +296,110 @@
   </div>
   <label for="bump" class="bump-label">Bump factor: <span id="bumpValue">0</span>%</label>
   <input id="bump" type="range" min="0" max="25" step="1" value="0">
+</div>
+
+<div id="mill" class="panel" hidden>
+<div class="calc">
+  <!-- Garrisoned food -> food per minute -->
+  <div>
+    <label for="food">Garrisoned food:</label>
+    <input id="food" type="number" step="any" value="0">
+    <div id="foodError" class="error"></div>
+    <div id="rateResult" class="result" hidden>
+      <span id="rateOutput" class="value"></span> <span class="unit">Food per minute</span>
+    </div>
+  </div>
+
+  <!-- Food per minute -> garrisoned food (reverse) -->
+  <div class="reverse">
+    <label for="rate">Food per minute:</label>
+    <input id="rate" type="number" step="any" value="0">
+    <div id="rateError" class="error"></div>
+    <div id="foodResult" class="result" hidden>
+      <span id="foodOutput" class="value"></span> <span class="unit">Garrisoned food (≥<span id="sheepOutput"></span> sheep, ≥<span id="cowOutput"></span> cows)</span>
+    </div>
+  </div>
+
+  <div class="formulas">
+    <div class="formula"><i>R</i> = 15 · ln(<i>F</i> / 200 + 1)</div>
+    <div class="formula"><i>F</i> = 200 · (<i>e</i><sup><i>R</i> / 15</sup> − 1)</div>
+    <div class="legend"><i>F</i> = garrisoned food<br><i>R</i> = food per minute</div>
+  </div>
+</div>
+</div>
+
+<div id="walk" class="panel" hidden>
+  <label for="gatherer">Gatherer:</label>
+  <select id="gatherer">
+    <option value="lumberjack" selected>Lumberjack [23.3]</option>
+    <option value="farmer">Farmer [20.3]</option>
+    <option value="hunter">Hunter [24.6]</option>
+    <option value="gold">Gold Miner [22.8]</option>
+    <option value="stone">Stone Miner [21.6]</option>
+    <option value="custom">Custom</option>
+  </select>
+
+  <label for="gatherRate">Gather rate per minute:</label>
+  <div class="row">
+    <input id="gatherRate" type="number" min="0" step="any" value="23.3">
+    <div class="buttons techs">
+      <div class="tech-group" data-preset="lumberjack">
+        <label class="option"><input id="doubleBitAxe" type="checkbox"> Double-Bit Axe</label>
+        <label class="option"><input id="bowSaw" type="checkbox"> Bow Saw</label>
+        <label class="option"><input id="twoManSaw" type="checkbox"> Two-Man Saw</label>
+      </div>
+      <div class="tech-group" data-preset="gold" hidden>
+        <label class="option"><input id="goldMining" type="checkbox"> Gold Mining</label>
+        <label class="option"><input id="goldShaftMining" type="checkbox"> Gold Shaft Mining</label>
+      </div>
+      <div class="tech-group" data-preset="stone" hidden>
+        <label class="option"><input id="stoneMining" type="checkbox"> Stone Mining</label>
+        <label class="option"><input id="stoneShaftMining" type="checkbox"> Stone Shaft Mining</label>
+      </div>
+    </div>
+  </div>
+
+  <label for="walkDistance" class="distance-label">Drop-off distance in tiles:</label>
+  <div class="row">
+    <input id="walkDistance" type="number" min="0" max="50" step="any" value="5">
+    <div class="buttons">
+      <label class="option"><input id="wheelbarrow" type="checkbox"> Wheelbarrow</label>
+      <label class="option"><input id="handCart" type="checkbox"> Hand Cart</label>
+    </div>
+  </div>
+  <input id="walkSlider" type="range" min="0" max="50" step="1" value="5" aria-label="Drop-off distance in tiles">
+  <div id="walkError" class="error"></div>
+  <div class="calc">
+    <div id="walkResult" class="result" hidden>
+      <div><span id="walkRate" class="value"></span> <span class="unit"><span id="resourceWord"></span> per minute</span></div>
+      <div><span id="efficiency" class="value"></span> <span class="unit">of gather rate</span></div>
+    </div>
+
+    <div class="formulas">
+      <div class="formula"><i>R′</i> = 60<i>C</i> / (60<i>C</i> / <i>R</i> + 2<i>D</i> / <i>v</i>)</div>
+      <div class="legend"><i>R</i> = gather rate per minute<br><i>D</i> = drop-off distance<br><i>C</i> = carry capacity (<span id="carryOutput"></span>)<br><i>v</i> = walking speed (<span id="speedOutput"></span> tiles/s)</div>
+    </div>
+  </div>
+</div>
 
 <script>
+  // Show only the calculator chosen at the top of the page.
+  const mode = document.getElementById("mode");
+  const trade = document.getElementById("trade");
+  const mill = document.getElementById("mill");
+  const walk = document.getElementById("walk");
+
+  function updateMode() {
+    trade.hidden = mode.value !== "trade";
+    mill.hidden = mode.value !== "mill";
+    walk.hidden = mode.value !== "walk";
+  }
+  mode.addEventListener("change", updateMode);
+  // Browsers can restore the choice on reload, so show the matching calculator.
+  updateMode();
+
+  // Trade
+
   const input = document.getElementById("num");
   const slider = document.getElementById("slider");
   const size = document.getElementById("size");
@@ -429,6 +623,262 @@
   bumpValue.textContent = bump.value;
   // Always start at a distance of 40 so the results are shown on load.
   setDistance(40);
+
+  // Gurjara Mill
+  function readNumber(input, error) {
+    const text = input.value.trim();
+    error.textContent = "";
+    // An empty field counts as 0 so the result stays shown.
+    if (text === "") return 0;
+
+    const n = Number(text);
+    if (!Number.isFinite(n)) {
+      error.textContent = "Please enter a number.";
+      return null;
+    }
+    return n;
+  }
+
+  // Forward: rate = 15 * ln(F / 200 + 1)
+  const food = document.getElementById("food");
+  const foodError = document.getElementById("foodError");
+  const rateResult = document.getElementById("rateResult");
+  const rateOutput = document.getElementById("rateOutput");
+
+  function showRate() {
+    rateResult.hidden = true;
+    const f = readNumber(food, foodError);
+    if (f === null) return;
+
+    // ln(F / 200 + 1) is only defined when F is greater than -200.
+    if (f <= -200) {
+      foodError.textContent = "The value must be greater than -200.";
+      return;
+    }
+
+    // Math.log1p(a) computes ln(a + 1) and stays accurate for small F.
+    const rate = 15 * Math.log1p(f / 200);
+    rateOutput.textContent = rate.toFixed(1);
+    rateResult.hidden = false;
+  }
+  food.addEventListener("input", showRate);
+
+  // Reverse: F = 200 * (e^(rate / 15) - 1)
+  const rate = document.getElementById("rate");
+  const rateError = document.getElementById("rateError");
+  const foodResult = document.getElementById("foodResult");
+  const foodOutput = document.getElementById("foodOutput");
+  const sheepOutput = document.getElementById("sheepOutput");
+  const cowOutput = document.getElementById("cowOutput");
+
+  function showFood() {
+    foodResult.hidden = true;
+    const r = readNumber(rate, rateError);
+    if (r === null) return;
+
+    // Math.expm1(a) computes e^a - 1 and stays accurate for small rates.
+    const f = 200 * Math.expm1(r / 15);
+    if (!Number.isFinite(f)) {
+      rateError.textContent = "That rate is too large to calculate.";
+      return;
+    }
+
+    foodOutput.textContent = f.toFixed(1);
+    // A sheep holds 100 food and a cow 150, and neither can be split, so
+    // round up to whole animals. Uses the food rounded to one decimal, as
+    // shown, kept whole as tenths, so e.g. 900.0 food is 9 sheep rather than
+    // 10 from a tiny floating-point excess.
+    const tenths = Math.round(f * 10);
+    sheepOutput.textContent = Math.ceil(tenths / 1000);
+    cowOutput.textContent = Math.ceil(tenths / 1500);
+    foodResult.hidden = false;
+  }
+  rate.addEventListener("input", showFood);
+
+  // Show both results on load (browsers can also restore typed values on reload).
+  showRate();
+  showFood();
+
+  // Walking distance
+  const gatherer = document.getElementById("gatherer");
+  const gatherRate = document.getElementById("gatherRate");
+  const walkDistance = document.getElementById("walkDistance");
+  const walkSlider = document.getElementById("walkSlider");
+  const wheelbarrow = document.getElementById("wheelbarrow");
+  const handCart = document.getElementById("handCart");
+  const doubleBitAxe = document.getElementById("doubleBitAxe");
+  const bowSaw = document.getElementById("bowSaw");
+  const twoManSaw = document.getElementById("twoManSaw");
+  const goldMining = document.getElementById("goldMining");
+  const goldShaftMining = document.getElementById("goldShaftMining");
+  const stoneMining = document.getElementById("stoneMining");
+  const stoneShaftMining = document.getElementById("stoneShaftMining");
+  const walkError = document.getElementById("walkError");
+  const walkResult = document.getElementById("walkResult");
+  const walkRate = document.getElementById("walkRate");
+  const resourceWord = document.getElementById("resourceWord");
+  const efficiency = document.getElementById("efficiency");
+  const carryOutput = document.getElementById("carryOutput");
+  const speedOutput = document.getElementById("speedOutput");
+
+  const MAX_WALK = 50;
+
+  // Gather rates per minute with no walking, from aoe2vils.net, by how many
+  // of the gatherer's techs are researched (each needs the one before).
+  // Lumberjacks: 23.3, then Double-Bit Axe, Bow Saw and Two-Man Saw as
+  // measured. Gold and stone miners: 0.38 and 0.36 per second (22.8 and 21.6
+  // per minute), +15% for each mining tech. Farmers: Wheelbarrow and Hand
+  // Cart raise the rate even with no walking, unlike for other gatherers.
+  // Hunters: 0.41 per second (24.6 per minute), with no techs.
+  const PRESETS = {
+    lumberjack: { name: "Lumberjack", resource: "wood", techs: [doubleBitAxe, bowSaw, twoManSaw], rate: [23.3, 27.9, 33.2, 36.6] },
+    farmer: { name: "Farmer", resource: "food", techs: [wheelbarrow, handCart], rate: [20.3, 23.03, 23.87] },
+    hunter: { name: "Hunter", resource: "food", techs: [], rate: [24.6] },
+    gold: { name: "Gold Miner", resource: "gold", techs: [goldMining, goldShaftMining], rate: [22.8, 26.22, 30.153] },
+    stone: { name: "Stone Miner", resource: "stone", techs: [stoneMining, stoneShaftMining], rate: [21.6, 24.84, 28.566] },
+  };
+
+  // Villager carry capacity and walking speed by upgrade, the speed in
+  // hundredths of a tile per second (kept whole): 10 and 0.80 unupgraded,
+  // 13 and 0.88 with Wheelbarrow, 20 and 0.97 with Hand Cart.
+  const CARRY = [10, 13, 20];
+  const SPEED = [80, 88, 97];
+
+  // How many of a chain of techs are researched. Each needs the one before,
+  // so they're always ticked from the start of the chain.
+  function researched(techs) {
+    return techs.filter((tech) => tech.checked).length;
+  }
+
+  function presetRate(key) {
+    const preset = PRESETS[key];
+    return preset.rate[researched(preset.techs)];
+  }
+
+  function villager() {
+    const upgrade = researched([wheelbarrow, handCart]);
+    return { carry: CARRY[upgrade], speed: SPEED[upgrade] };
+  }
+
+  function calculateWalk() {
+    walkResult.hidden = true;
+    walkError.textContent = "";
+
+    const { carry, speed } = villager();
+    carryOutput.textContent = carry;
+    speedOutput.textContent = (speed / 100).toFixed(2);
+
+    const rateText = gatherRate.value.trim();
+    const distanceText = walkDistance.value.trim();
+    if (rateText === "" || distanceText === "") return;
+
+    const r = Number(rateText);
+    if (!(r > 0)) {
+      walkError.textContent = "The gather rate must be greater than 0.";
+      return;
+    }
+    const x = Number(distanceText);
+
+    // The gather rate counts no walking. Gathering a full load of C at R per
+    // minute takes 60C / R seconds, then the villager walks x tiles to the
+    // drop-off and x back at speed / 100 tiles per second, taking
+    // 200x / speed seconds. Each such trip brings C, so per minute
+    // R' = 60C / (60C / R + 200x / speed).
+    const tripSeconds = (60 * carry) / r + (200 * x) / speed;
+    const newRate = (60 * carry) / tripSeconds;
+
+    walkRate.textContent = newRate.toFixed(1);
+    efficiency.textContent = Math.round((newRate / r) * 100) + "%";
+    const preset = PRESETS[gatherer.value];
+    resourceWord.textContent = preset ? preset.resource : "resources";
+    walkResult.hidden = false;
+  }
+
+  // Show the presets' rates for the upgrades ticked.
+  function updatePresetLabels() {
+    for (const option of gatherer.options) {
+      if (option.value in PRESETS) {
+        option.textContent = PRESETS[option.value].name + " [" + presetRate(option.value) + "]";
+      }
+    }
+  }
+
+  // Show only the chosen gatherer's techs (a farmer's are Wheelbarrow and
+  // Hand Cart, always shown). Hidden ones keep their ticks.
+  function updateTechs() {
+    document.querySelectorAll(".tech-group").forEach((group) => {
+      group.hidden = group.dataset.preset !== gatherer.value;
+    });
+  }
+
+  // Show the preset whose rate is typed, or Custom if none has it.
+  function matchPreset() {
+    const r = Number(gatherRate.value);
+    const key = Object.keys(PRESETS).find((k) => presetRate(k) === r);
+    gatherer.value = key || "custom";
+    updateTechs();
+  }
+
+  // When the techs change, a chosen preset takes its rate for them.
+  function changeTech() {
+    updatePresetLabels();
+    if (gatherer.value !== "custom") gatherRate.value = presetRate(gatherer.value);
+    calculateWalk();
+  }
+
+  // Values typed outside 0 - 50 are replaced with the nearest limit.
+  function clampWalk() {
+    if (walkDistance.value === "") return;
+    if (Number(walkDistance.value) > MAX_WALK) walkDistance.value = MAX_WALK;
+    else if (Number(walkDistance.value) < 0) walkDistance.value = 0;
+  }
+
+  // Move the slider to match the text field.
+  function syncWalkSlider() {
+    if (walkDistance.value !== "") walkSlider.value = walkDistance.value;
+  }
+
+  gatherer.addEventListener("change", () => {
+    if (gatherer.value !== "custom") gatherRate.value = presetRate(gatherer.value);
+    updateTechs();
+    calculateWalk();
+  });
+
+  gatherRate.addEventListener("input", () => {
+    matchPreset();
+    calculateWalk();
+  });
+
+  walkSlider.addEventListener("input", () => {
+    walkDistance.value = walkSlider.value;
+    calculateWalk();
+  });
+
+  walkDistance.addEventListener("input", () => {
+    clampWalk();
+    syncWalkSlider();
+    calculateWalk();
+  });
+
+  // Each tech in a gatherer's chain is a prerequisite of the next (Double-Bit
+  // Axe of Bow Saw, Wheelbarrow of Hand Cart, ...): ticking a tech ticks the
+  // ones before it, and unticking a tech unticks the ones after it.
+  Object.values(PRESETS).map((preset) => preset.techs).forEach((techs) => {
+    techs.forEach((tech, i) => {
+      tech.addEventListener("change", () => {
+        if (tech.checked) techs.slice(0, i).forEach((t) => { t.checked = true; });
+        else techs.slice(i + 1).forEach((t) => { t.checked = false; });
+        changeTech();
+      });
+    });
+  });
+
+  // Browsers can restore typed values and ticks on reload, so match the
+  // preset labels, the preset and the slider to them.
+  updatePresetLabels();
+  matchPreset();
+  syncWalkSlider();
+  calculateWalk();
 </script>
 </body>
 </html>
