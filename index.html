@@ -242,6 +242,10 @@
       width: 10em;
     }
   }
+  /* Production potential */
+  .production-label {
+    margin-top: 16px;
+  }
 </style>
 </head>
 <body>
@@ -250,6 +254,7 @@
     <option value="trade" selected>Trade</option>
     <option value="mill">Gurjara Mill</option>
     <option value="walk">Walking distance</option>
+    <option value="production">Production potential</option>
   </select>
 
 <div id="trade" class="panel">
@@ -382,17 +387,44 @@
   </div>
 </div>
 
+<div id="production" class="panel" hidden>
+  <label for="unitName">Unit:</label>
+  <input id="unitName" list="unitList" value="Crossbowman" autocomplete="off" spellcheck="false">
+  <datalist id="unitList"></datalist>
+
+  <label for="buildings" class="production-label">Production buildings:</label>
+  <input id="buildings" type="number" min="1" max="60" step="1" value="4">
+  <input id="buildingsSlider" type="range" min="1" max="60" step="1" value="4" aria-label="Production buildings">
+
+  <label for="elapsed" class="production-label">Elapsed time in seconds:</label>
+  <input id="elapsed" type="number" min="0" max="900" step="1" value="240">
+  <input id="elapsedSlider" type="range" min="0" max="900" step="1" value="240" aria-label="Elapsed time in seconds">
+  <div id="productionError" class="error"></div>
+  <div class="calc">
+    <div id="productionResult" class="result" hidden>
+      <div><span id="unitCount" class="value"></span> <span class="unit">units in <span id="elapsedClock"></span></span></div>
+    </div>
+
+    <div class="formulas">
+      <div class="formula"><i>N</i> = <i>B</i> · ⌊<i>T</i> / <i>t</i>⌋</div>
+      <div class="legend"><i>N</i> = units<br><i>B</i> = production buildings<br><i>T</i> = elapsed time<br><i>t</i> = training time (<span id="trainOutput"></span> s)</div>
+    </div>
+  </div>
+</div>
+
 <script>
   // Show only the calculator chosen at the top of the page.
   const mode = document.getElementById("mode");
   const trade = document.getElementById("trade");
   const mill = document.getElementById("mill");
   const walk = document.getElementById("walk");
+  const production = document.getElementById("production");
 
   function updateMode() {
     trade.hidden = mode.value !== "trade";
     mill.hidden = mode.value !== "mill";
     walk.hidden = mode.value !== "walk";
+    production.hidden = mode.value !== "production";
   }
   mode.addEventListener("change", updateMode);
   // Browsers can restore the choice on reload, so show the matching calculator.
@@ -879,6 +911,155 @@
   matchPreset();
   syncWalkSlider();
   calculateWalk();
+
+  // Production potential
+  const unitName = document.getElementById("unitName");
+  const unitList = document.getElementById("unitList");
+  const buildings = document.getElementById("buildings");
+  const buildingsSlider = document.getElementById("buildingsSlider");
+  const elapsed = document.getElementById("elapsed");
+  const elapsedSlider = document.getElementById("elapsedSlider");
+  const productionError = document.getElementById("productionError");
+  const productionResult = document.getElementById("productionResult");
+  const unitCount = document.getElementById("unitCount");
+  const elapsedClock = document.getElementById("elapsedClock");
+  const trainOutput = document.getElementById("trainOutput");
+
+  // Training times in seconds with no civ bonuses or techs, from the
+  // aoe2techtree data (github.com/SiegeEngineers/aoe2techtree). Heroes are
+  // left out, since there's only ever one of each.
+  const TRAIN_TIMES = {
+    "Arambai": 18, "Arbalester": 27, "Archer": 35, "Armored Elephant": 36,
+    "Ballista Elephant": 25, "Battering Ram": 36, "Battle Elephant": 24, "Berserk": 14,
+    "Blackwood Archer": 18, "Bolas Rider": 34, "Bombard Cannon": 56, "Boyar": 15,
+    "Camel Archer": 25, "Camel Rider": 22, "Camel Scout": 22, "Cannon Galleon": 46,
+    "Capped Ram": 36, "Caravel": 25, "Carrack": 27, "Cataphract": 20, "Catapult Galleon": 55,
+    "Cavalier": 30, "Cavalry Archer": 37, "Centurion": 24, "Chakram Thrower": 15,
+    "Champi Runner": 34, "Champi Scout": 42, "Champi Warrior": 26, "Champion": 21,
+    "Chu Ko Nu": 16, "Composite Bowman": 12, "Condottiero": 18, "Conquistador": 26,
+    "Coustillier": 15, "Crossbowman": 27, "Demolition Raft": 45, "Demolition Ship": 31,
+    "Dragon Ship": 27, "Dromon": 65, "Eagle Scout": 46, "Eagle Warrior": 35,
+    "Elephant Archer": 32, "Elite Arambai": 18, "Elite Ballista Elephant": 25,
+    "Elite Battle Elephant": 24, "Elite Berserk": 12, "Elite Blackwood Archer": 14,
+    "Elite Bolas Rider": 28, "Elite Boyar": 15, "Elite Camel Archer": 25,
+    "Elite Cannon Galleon": 46, "Elite Caravel": 25, "Elite Cataphract": 20,
+    "Elite Centurion": 24, "Elite Chakram Thrower": 15, "Elite Champi Warrior": 21,
+    "Elite Chu Ko Nu": 13, "Elite Composite Bowman": 10, "Elite Conquistador": 24,
+    "Elite Coustillier": 14, "Elite Eagle Warrior": 20, "Elite Elephant Archer": 32,
+    "Elite Fire Archer": 17, "Elite Fire Lancer": 25, "Elite Gbeto": 17, "Elite Genitour": 23,
+    "Elite Genoese Crossbowman": 14, "Elite Ghulam": 12, "Elite Guecha Warrior": 17,
+    "Elite Hearth Troop": 14, "Elite Huskarl": 13, "Elite Hussite Wagon": 26,
+    "Elite Ibirapema Warrior": 24, "Elite Iron Pagoda": 14, "Elite Jaguar Warrior": 12,
+    "Elite Janissary": 21, "Elite Jarl": 23, "Elite Jomsviking": 10, "Elite Kamayuk": 10,
+    "Elite Karambit Warrior": 6, "Elite Keshik": 15, "Elite Kipchak": 20, "Elite Kona": 14,
+    "Elite Konnik": 16, "Elite Leitis": 18, "Elite Liao Dao": 12, "Elite Longbowman": 18,
+    "Elite Longship": 25, "Elite Magyar Huszar": 12, "Elite Mameluke": 23,
+    "Elite Mangudai": 26, "Elite Monaspa": 14, "Elite Obuch": 12, "Elite Organ Gun": 21,
+    "Elite Plumed Archer": 16, "Elite Ratha": 18, "Elite Rattan Archer": 16,
+    "Elite Samurai": 9, "Elite Serjeant": 12, "Elite Shotel Warrior": 4,
+    "Elite Shrivamsha Rider": 20, "Elite Skirmisher": 22, "Elite Steppe Lancer": 20,
+    "Elite Tarkan": 14, "Elite Temple Guard": 24, "Elite Teutonic Knight": 12,
+    "Elite Throwing Axeman": 13, "Elite Tiger Cavalry": 18, "Elite Turtle Ship": 50,
+    "Elite Urumi Swordsman": 9, "Elite Varangian Guard": 30, "Elite War Elephant": 25,
+    "Elite War Wagon": 21, "Elite White Feather Guard": 11, "Elite Woad Raider": 10,
+    "Fast Fire Ship": 27, "Fire Archer": 17, "Fire Galley": 49, "Fire Lancer": 35,
+    "Fire Ship": 27, "Fishing Ship": 40, "Flaming Camel": 30, "Flemish Militia": 16,
+    "Galleon": 27, "Galley": 45, "Gbeto": 17, "Genitour": 25, "Genoese Crossbowman": 14,
+    "Ghulam": 12, "Grenadier": 21, "Guecha Warrior": 17, "Halberdier": 22,
+    "Hand Cannoneer": 34, "Hearth Troop": 16, "Heavy Camel Rider": 22,
+    "Heavy Cavalry Archer": 30, "Heavy Demo Ship": 31, "Heavy Hei Guang Cavalry": 28,
+    "Heavy Mounted Crossbowman": 30, "Heavy Rocket Cart": 40, "Heavy Scorpion": 30,
+    "Hei Guang Cavalry": 28, "Houfnice": 56, "Hulk": 42, "Huskarl": 13, "Hussar": 30,
+    "Hussite Wagon": 30, "Ibirapema Warrior": 24, "Imperial Camel Rider": 20,
+    "Imperial Skirmisher": 22, "Iron Pagoda": 14, "Jaguar Warrior": 12, "Janissary": 21,
+    "Jarl": 23, "Jian Swordsman": 35, "Jomsviking": 10, "Kamayuk": 10, "Karambit Warrior": 6,
+    "Keshik": 17, "Kipchak": 20, "Knight": 30, "Kona": 14, "Konnik": 16, "Legionary": 21,
+    "Leitis": 20, "Liao Dao": 12, "Light Cavalry": 30, "Long Swordsman": 21, "Longbowman": 18,
+    "Longship": 25, "Lou Chuan": 60, "Magyar Huszar": 18, "Mameluke": 23, "Man-at-Arms": 21,
+    "Mangonel": 46, "Mangudai": 26, "Militia": 21, "Missionary": 51, "Monaspa": 14, "Monk": 51,
+    "Mounted Crossbowman": 40, "Mounted Trebuchet": 46, "Obuch": 12, "Onager": 46,
+    "Organ Gun": 28, "Paladin": 30, "Petard": 25, "Pikeman": 22, "Plumed Archer": 16,
+    "Ratha": 24, "Rattan Archer": 16, "Rocket Cart": 40, "Samurai": 9, "Savar": 30,
+    "Scorpion": 30, "Scout Cavalry": 30, "Serjeant": 12, "Serjeant (Donjon)": 16,
+    "Shotel Warrior": 8, "Shrivamsha Rider": 20, "Siege Elephant": 36, "Siege Onager": 46,
+    "Siege Ram": 36, "Siege Tower": 36, "Skirmisher": 26, "Slinger": 25, "Spearman": 22,
+    "Steppe Lancer": 24, "Tarkan": 14, "Temple Guard": 28, "Teutonic Knight": 12,
+    "Thirisadai": 40, "Throwing Axeman": 13, "Tiger Cavalry": 18, "Traction Trebuchet": 70,
+    "Trade Cart": 51, "Trade Cog": 36, "Transport Ship": 46, "Trebuchet": 50,
+    "Turtle Ship": 50, "Two-Handed Swordsman": 21, "Urumi Swordsman": 9, "Varangian Guard": 30,
+    "Villager": 25, "War Chariot": 32, "War Elephant": 25, "War Galley": 27, "War Hulk": 27,
+    "War Wagon": 21, "Warrior Priest": 30, "White Feather Guard": 11, "Winged Hussar": 30,
+    "Woad Raider": 10, "Xianbei Raider": 29,
+  };
+
+  // Offer every unit in the search dropdown.
+  for (const name of Object.keys(TRAIN_TIMES)) {
+    const option = document.createElement("option");
+    option.value = name;
+    unitList.append(option);
+  }
+
+  // The unit whose name is typed, ignoring case, or undefined if none has it.
+  function findUnit() {
+    const text = unitName.value.trim().toLowerCase();
+    return Object.keys(TRAIN_TIMES).find((name) => name.toLowerCase() === text);
+  }
+
+  function calculateProduction() {
+    productionResult.hidden = true;
+    productionError.textContent = "";
+
+    const name = findUnit();
+    trainOutput.textContent = name ? TRAIN_TIMES[name] : "?";
+
+    const buildingsText = buildings.value.trim();
+    const elapsedText = elapsed.value.trim();
+    if (unitName.value.trim() === "" || buildingsText === "" || elapsedText === "") return;
+
+    if (!name) {
+      productionError.textContent = "Please choose a unit from the list.";
+      return;
+    }
+    const b = Number(buildingsText);
+    const t = Number(elapsedText);
+    if (!Number.isInteger(b) || !Number.isInteger(t)) {
+      productionError.textContent = "Please enter whole numbers.";
+      return;
+    }
+
+    // Each building finishes one unit per training time, so in T seconds it
+    // makes floor(T / t). Both are whole seconds, so there are no
+    // floating-point rounding errors.
+    unitCount.textContent = b * Math.floor(t / TRAIN_TIMES[name]);
+    elapsedClock.textContent = formatTime(t);
+    productionResult.hidden = false;
+  }
+
+  // Values typed outside the field's min - max are replaced with the nearest
+  // limit, and the slider moves to match the text field.
+  function clampAndSync(field, slider) {
+    if (field.value === "") return;
+    if (Number(field.value) > Number(field.max)) field.value = field.max;
+    else if (Number(field.value) < Number(field.min)) field.value = field.min;
+    slider.value = field.value;
+  }
+
+  [[buildings, buildingsSlider], [elapsed, elapsedSlider]].forEach(([field, slider]) => {
+    slider.addEventListener("input", () => {
+      field.value = slider.value;
+      calculateProduction();
+    });
+    field.addEventListener("input", () => {
+      clampAndSync(field, slider);
+      calculateProduction();
+    });
+    // Browsers can restore typed values on reload, so match the slider to them.
+    clampAndSync(field, slider);
+  });
+
+  unitName.addEventListener("input", calculateProduction);
+
+  calculateProduction();
 </script>
 </body>
 </html>
