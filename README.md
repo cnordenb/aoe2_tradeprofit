@@ -1,4 +1,4 @@
-# aoe2_tradeprofit
+# aoe2_calc
 
 AoE2 calculator:
 - trade profit
