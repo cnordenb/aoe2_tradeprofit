@@ -94,6 +94,40 @@
       max-width: 50%;
     }
   }
+  /* Civ bonuses and unique techs sit outside the content column, out in the
+     left margin. */
+  .civ-options {
+    position: absolute;
+    right: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-right: 24px;
+    width: max-content;
+    max-width: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  /* On narrow screens there's no margin to use, so put them under the other
+     options beside the input, with extra space to set them apart. The grid
+     sizes that column the way max-width: 50% did. */
+  @media (max-width: 960px) {
+    #trade .row {
+      display: grid;
+      grid-template-columns: 1fr fit-content(50%);
+      gap: 16px 8px;
+    }
+    #trade .row > input {
+      grid-row: span 2;
+    }
+    #trade .buttons, .civ-options {
+      position: static;
+      transform: none;
+      margin: 0;
+      width: auto;
+      max-width: none;
+    }
+  }
   button {
     font-size: 0.9rem;
     padding: 4px 8px;
@@ -147,10 +181,6 @@
   .cog-only[hidden] {
     visibility: hidden;
   }
-  /* Extra space to separate a new group of options. */
-  .group-start {
-    margin-top: 12px;
-  }
   input[type="checkbox"], input[type="radio"] {
     width: auto;
     margin: 0;
@@ -192,6 +222,18 @@
     flex-direction: column;
     gap: 8px;
     white-space: nowrap;
+  }
+  /* Trade's options take the margin beside the input, and its first row of
+     results can spill into the margin, so its formulas start level with the
+     second row instead of centred. */
+  #trade .formulas {
+    top: 64px;
+    transform: none;
+  }
+  /* Lay out the results and bump factor as the panel would around them. */
+  #trade .calc {
+    display: flex;
+    flex-direction: column;
   }
   /* On narrow screens there's no margin to use, so put them below. */
   @media (max-width: 960px) {
@@ -283,7 +325,9 @@
       <label class="option cog-only"><input id="clinker" type="checkbox"> Clinker Construction</label>
       <label class="option cog-only"><input id="carvel" type="checkbox"> Carvel Hull</label>
       <label class="option"><input id="halfTrip" type="checkbox"> Half-trip start</label>
-      <label class="option group-start"><input id="spanish" type="checkbox"> Spanish team bonus</label>
+    </div>
+    <div class="civ-options">
+      <label class="option"><input id="spanish" type="checkbox"> Spanish team bonus</label>
       <label class="option"><input id="silkRoad" type="checkbox"> Silk Road (Italian UT: trade units cost -50%)</label>
       <label class="option"><input id="grandTrunk" type="checkbox"> Grand Trunk Road (Hindustani UT: 10% more gold per trip)</label>
       <label class="option"><input id="varangian" type="checkbox"> Varangian civ bonus (+50% stronger Caravan)</label>
@@ -291,16 +335,26 @@
   </div>
   <input id="slider" type="range" min="0" max="169" step="1" value="40" aria-label="Distance in tiles">
   <div id="error" class="error"></div>
-  <div id="result" class="result" hidden>
-    <div class="result-row">
-      <div><span id="perTrip" class="value"></span> <span class="unit">gold per trip</span></div>
-      <div><span id="tripTime" class="value"></span> <span class="unit">time per round-trip</span></div>
+  <div class="calc">
+    <div id="result" class="result" hidden>
+      <div class="result-row">
+        <div><span id="perTrip" class="value"></span> <span class="unit">gold per trip</span></div>
+        <div><span id="tripTime" class="value"></span> <span class="unit">time per round-trip</span></div>
+      </div>
+      <div><span id="perMinute" class="value"></span> <span class="unit">gold per minute</span></div>
+      <div><span id="breakEven" class="value"></span> <span class="unit">break-even time</span></div>
     </div>
-    <div><span id="perMinute" class="value"></span> <span class="unit">gold per minute</span></div>
-    <div><span id="breakEven" class="value"></span> <span class="unit">break-even time</span></div>
+    <label for="bump" class="bump-label">Bump factor: <span id="bumpValue">0</span>%</label>
+    <input id="bump" type="range" min="0" max="25" step="1" value="0">
+
+    <div class="formulas">
+      <div class="formula"><i>G</i> = 0.46<i>kD</i> · (<i>D</i> / <i>M</i> + 0.3)</div>
+      <div class="formula"><i>T</i> = 2<i>D</i> / (<i>v</i> · (1 − <i>b</i>))</div>
+      <div class="formula"><i>R</i> = 60<i>G</i> / <i>T</i></div>
+      <div class="formula"><i>E</i> = (⌈<i>c</i> / <i>G</i>⌉ − <i>h</i> / 2) · <i>T</i></div>
+      <div class="legend"><i>G</i> = gold per trip<br><i>T</i> = time per round-trip (s)<br><i>R</i> = gold per minute<br><i>E</i> = break-even time (s)<br><i>D</i> = distance in tiles<br><i>M</i> = map size (<span id="mapOutput"></span>)<br><i>k</i> = gold bonus (<span id="bonusOutput"></span>)<br><i>v</i> = speed (<span id="tradeSpeedOutput"></span> tiles/s)<br><i>b</i> = bump factor (<span id="bumpOutput"></span>%)<br><i>c</i> = trade unit cost (<span id="costOutput"></span>)<br><i>h</i> = half-trip start (<span id="halfTripOutput"></span>)</div>
+    </div>
   </div>
-  <label for="bump" class="bump-label">Bump factor: <span id="bumpValue">0</span>%</label>
-  <input id="bump" type="range" min="0" max="25" step="1" value="0">
 </div>
 
 <div id="mill" class="panel" hidden>
@@ -344,7 +398,7 @@
     <option value="custom">Custom</option>
   </select>
 
-  <label for="gatherRate">Gather rate per minute:</label>
+  <label for="gatherRate">Gather rate (resource amount per minute):</label>
   <div class="row">
     <input id="gatherRate" type="number" min="0" step="any" value="23.3">
     <div class="buttons techs">
@@ -364,7 +418,7 @@
     </div>
   </div>
 
-  <label for="walkDistance" class="distance-label">Drop-off distance in tiles:</label>
+  <label for="walkDistance" class="distance-label">Drop-off distance (tiles):</label>
   <div class="row">
     <input id="walkDistance" type="number" min="0" max="50" step="any" value="5">
     <div class="buttons">
@@ -372,7 +426,7 @@
       <label class="option"><input id="handCart" type="checkbox"> Hand Cart</label>
     </div>
   </div>
-  <input id="walkSlider" type="range" min="0" max="50" step="1" value="5" aria-label="Drop-off distance in tiles">
+  <input id="walkSlider" type="range" min="0" max="50" step="1" value="5" aria-label="Drop-off distance (tiles)">
   <div id="walkError" class="error"></div>
   <div class="calc">
     <div id="walkResult" class="result" hidden>
@@ -382,7 +436,7 @@
 
     <div class="formulas">
       <div class="formula"><i>R′</i> = 60<i>C</i> / (60<i>C</i> / <i>R</i> + 2<i>D</i> / <i>v</i>)</div>
-      <div class="legend"><i>R</i> = gather rate per minute<br><i>D</i> = drop-off distance<br><i>C</i> = carry capacity (<span id="carryOutput"></span>)<br><i>v</i> = walking speed (<span id="speedOutput"></span> tiles/s)</div>
+      <div class="legend"><i>R</i> = gather rate (<span id="gatherRateOutput"></span>/min)<br><i>D</i> = drop-off distance (<span id="walkDistanceOutput"></span> tiles)<br><i>C</i> = carry capacity (<span id="carryOutput"></span>)<br><i>v</i> = walking speed (<span id="speedOutput"></span> tiles/s)</div>
     </div>
   </div>
 </div>
@@ -452,8 +506,42 @@
   const perMinute = document.getElementById("perMinute");
   const breakEven = document.getElementById("breakEven");
   const error = document.getElementById("error");
+  const mapOutput = document.getElementById("mapOutput");
+  const bonusOutput = document.getElementById("bonusOutput");
+  const tradeSpeedOutput = document.getElementById("tradeSpeedOutput");
+  const bumpOutput = document.getElementById("bumpOutput");
+  const costOutput = document.getElementById("costOutput");
+  const halfTripOutput = document.getElementById("halfTripOutput");
 
   function calculate() {
+    const d = Number(size.value);
+
+    // Spanish team bonus multiplies gold per trip by 1.25, kept whole as
+    // q / 4 quarters (q = 5 with the bonus, 4 without).
+    const q = spanish.checked ? 5 : 4;
+
+    // Grand Trunk Road multiplies gold per trip by 1.1, kept whole as
+    // g / 10 tenths (g = 11 with the tech, 10 without).
+    const g = grandTrunk.checked ? 11 : 10;
+
+    // Speed in thousandths of a tile per second, kept whole so speeds like
+    // 1.65 don't bring in floating-point rounding errors.
+    const s = speedThousandths();
+
+    // Bump factor b reduces gold per minute by b percent (0 - 25).
+    const b = Number(bump.value);
+
+    // Trade unit gold cost: 50, halved to 25 by Silk Road.
+    const cost = silkRoad.checked ? 25 : 50;
+
+    // Show the formulas' values, even when there's no distance to use them on.
+    mapOutput.textContent = d;
+    bonusOutput.textContent = (q * g) / 40;
+    tradeSpeedOutput.textContent = s / 1000;
+    bumpOutput.textContent = b;
+    costOutput.textContent = cost;
+    halfTripOutput.textContent = halfTrip.checked ? 1 : 0;
+
     const text = input.value.trim();
     result.hidden = true;
     error.textContent = "";
@@ -466,28 +554,11 @@
       return;
     }
 
-    const d = Number(size.value);
-
-    // Spanish team bonus multiplies gold per trip by 1.25, kept whole as
-    // q / 4 quarters (q = 5 with the bonus, 4 without).
-    const q = spanish.checked ? 5 : 4;
-
-    // Grand Trunk Road multiplies gold per trip by 1.1, kept whole as
-    // g / 10 tenths (g = 11 with the tech, 10 without).
-    const g = grandTrunk.checked ? 11 : 10;
-
     // 0.46 * x * (x / d + 0.3) is exactly 23 * x * (10x + 3d) / (500d),
     // times q / 4 and g / 10 for the bonuses. Rounded to one decimal, done as
     // 23 * x * (10x + 3d) * q * g / (2000d) so whole-number math avoids
     // floating-point rounding errors. Negative results are clamped to 0.
     const trip = Math.max(0, Math.round((23 * x * (10 * x + 3 * d) * q * g) / (2000 * d)) / 10);
-
-    // Speed in thousandths of a tile per second, kept whole so speeds like
-    // 1.65 don't bring in floating-point rounding errors.
-    const s = speedThousandths();
-
-    // Bump factor b reduces gold per minute by b percent (0 - 25).
-    const b = Number(bump.value);
 
     // Time per trip: there and back (2x tiles) at speed s / 1000, stretched
     // by the bump factor the same way gold per minute is reduced.
@@ -501,9 +572,6 @@
     // with speed = s / 1000, done as
     // 69 * (10x + 3d) * s * (100 - b) * q * g / (20000000d).
     const minute = x === 0 ? 0 : Math.round((69 * (10 * x + 3 * d) * s * (100 - b) * q * g) / (20000000 * d)) / 10;
-
-    // Trade unit gold cost: 50, halved to 25 by Silk Road.
-    const cost = silkRoad.checked ? 25 : 50;
 
     // Break-even: full trips needed to earn the gold cost, using the
     // unrounded trip value, so ceil(cost / trip)
@@ -752,6 +820,8 @@
   const efficiency = document.getElementById("efficiency");
   const carryOutput = document.getElementById("carryOutput");
   const speedOutput = document.getElementById("speedOutput");
+  const gatherRateOutput = document.getElementById("gatherRateOutput");
+  const walkDistanceOutput = document.getElementById("walkDistanceOutput");
 
   const MAX_WALK = 50;
 
@@ -802,6 +872,9 @@
 
     const rateText = gatherRate.value.trim();
     const distanceText = walkDistance.value.trim();
+    // Show the typed values, or ? while a field is empty.
+    gatherRateOutput.textContent = rateText || "?";
+    walkDistanceOutput.textContent = distanceText || "?";
     if (rateText === "" || distanceText === "") return;
 
     const r = Number(rateText);
